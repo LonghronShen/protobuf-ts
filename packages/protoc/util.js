@@ -61,7 +61,7 @@ module.exports.listInstalled = function listInstalled(installDir = standardInsta
             protocPath = path.join(abs, "bin/protoc");
         }
         let includePath = path.join(abs, "include/")
-        entries.push({name, version, protocPath, includePath});
+        entries.push({ name, version, protocPath, includePath });
     }
     return entries;
 };
@@ -175,26 +175,25 @@ module.exports.makeReleaseName = function makeReleaseName(params) {
     let build = `${params.platform}-${params.arch}`;
     switch (params.platform) {
         case "darwin":
-            build = 'osx-x86_64'
+            build = 'osx-x86_64';
             break;
         case "linux":
             if (params.arch === "x64") {
-                build = 'linux-x86_64'
+                build = 'linux-x86_64';
             } else if (params.arch === "x32") {
-                build = 'linux-x86_32'
+                build = 'linux-x86_32';
             }
             break;
         case "win32":
             if (params.arch === "x64") {
-                build = 'win64'
+                build = 'win64';
             } else if (params.arch === "x32") {
-                build = 'win32'
+                build = 'win32';
             }
             break;
     }
     return `protoc-${params.version}-${build}`;
-}
-
+};
 
 /**
  * Reads the package json from the given path if it exists and
@@ -207,14 +206,17 @@ module.exports.makeReleaseName = function makeReleaseName(params) {
  * If nothing was found, return undefined.
  *
  * @param {string} cwd
- * @returns {string | undefined}
+ * @returns {[string, string] | undefined}
  */
-module.exports.findProtocVersionConfig = function findProtocVersionConfig(cwd) {
+module.exports.findProtocConfig = function findProtocConfig(cwd) {
     let version = undefined;
+    let downloadUrl = undefined;
+
     let dirname = cwd;
     while (true) {
         version = tryReadProtocVersion(path.join(dirname, "package.json"));
-        if (version !== undefined) {
+        downloadUrl = tryReadProtocDownloadUrl(path.join(dirname, "package.json"));
+        if (version !== undefined || downloadUrl !== undefined) {
             break;
         }
         let parent = path.dirname(dirname);
@@ -223,7 +225,7 @@ module.exports.findProtocVersionConfig = function findProtocVersionConfig(cwd) {
         }
         dirname = parent;
     }
-    return version;
+    return [version, downloadUrl];
 };
 
 function tryReadProtocVersion(pkgPath) {
@@ -248,6 +250,27 @@ function tryReadProtocVersion(pkgPath) {
     return undefined;
 }
 
+function tryReadProtocDownloadUrl(pkgPath) {
+    if (!fs.existsSync(pkgPath)) {
+        return undefined;
+    }
+    let json = fs.readFileSync(pkgPath, "utf8");
+    let pkg;
+    try {
+        pkg = JSON.parse(json);
+    } catch (e) {
+        return undefined;
+    }
+    if (typeof pkg === "object" && typeof pkg.config === "object" && pkg.config !== null) {
+        if (pkg.config.hasOwnProperty("downloadUrl") && typeof pkg.config.protocVersion == "string") {
+            let downloadUrl = pkg.config.downloadUrl;
+            if (typeof downloadUrl === "string") {
+                return downloadUrl;
+            }
+        }
+    }
+    return undefined;
+}
 
 /**
  * @param {string} cwd
@@ -256,7 +279,7 @@ function tryReadProtocVersion(pkgPath) {
 module.exports.findProtobufTs = function (cwd) {
     let plugin = path.join(cwd, "node_modules", "@protobuf-ts", "plugin");
     return fs.existsSync(plugin) ? plugin : undefined;
-}
+};
 
 
 /**
@@ -296,7 +319,7 @@ module.exports.findProtocInPath = function (envPath) {
         .filter(p => !p.endsWith(`.npm-global${path.sep}bin`)) // ...
         .map(p => path.join(p, "protoc")) // we are looking for "protoc"
         .map(p => p[0] === "~" ? path.join(os.homedir(), p.slice(1)) : p) // try expand "~"
-    ;
+        ;
     for (let c of candidates) {
         if (fs.existsSync(c)) {
             return c;
@@ -412,5 +435,4 @@ module.exports.unzip = function unzip(buffer, onFile) {
             extraField
         };
     }
-
-}
+};

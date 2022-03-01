@@ -3,11 +3,11 @@
 // Automatically installs protoc if not found on $PATH, then
 // runs it transiently.
 
-const {spawnSync} = require('child_process');
+const { spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const {findProtocVersionConfig, listInstalled, findProtocPlugins, findProtobufTs, unzip, makeReleaseName, httpGetRedirect, httpDownload, mkDirRecursive, findProtocInPath, standardInstallDirectory} = require('./util');
+const { findProtocConfig: findProtocVersionConfig, listInstalled, findProtocPlugins, findProtobufTs, unzip, makeReleaseName, httpGetRedirect, httpDownload, mkDirRecursive, findProtocInPath, standardInstallDirectory } = require('./util');
 
 
 main().catch(err => {
@@ -17,26 +17,25 @@ main().catch(err => {
 
 
 async function main() {
-
     // the full path to the protoc executable
     let command;
     // the full path to the include files of a protoc release (well-known-types)
     let includePath;
 
     // does the nearest package.json have a config.protocVersion?
-    const configuredVersion = findProtocVersionConfig(process.cwd());
+    const { configuredVersion, configuredDownloadUrl } = findProtocVersionConfig(process.cwd());
 
     if (configuredVersion) {
         // we prefer the configured protoc version and install it
-        let release = await ensureInstalled(configuredVersion);
+        let release = await ensureInstalled(configuredVersion, configuredDownloadUrl);
         command = release.protocPath;
         includePath = release.includePath;
     } else {
         // there is no configured protoc version. do we have protoc in the $PATH?
-        command = findProtocInPath(process.env.PATH)
+        command = findProtocInPath(process.env.PATH);
         if (!command) {
             // no protoc in $PATH, install the latest version
-            let release = await ensureInstalled(configuredVersion);
+            let release = await ensureInstalled(configuredVersion, configuredDownloadUrl);
             command = release.protocPath;
             includePath = release.includePath;
         }
@@ -77,12 +76,15 @@ async function main() {
 }
 
 
-async function ensureInstalled(version) {
+async function ensureInstalled(version, configuredDownloadUrl) {
+    if (configuredDownloadUrl === undefined) {
+        configuredDownloadUrl = "https://github.com";
+    }
     // resolve the latest release version number if necessary
     if (version === "latest" || version === undefined) {
         let latestLocation;
         try {
-            latestLocation = await httpGetRedirect("https://github.com/protocolbuffers/protobuf/releases/latest");
+            latestLocation = await httpGetRedirect(`${configuredDownloadUrl}/protocolbuffers/protobuf/releases/latest`);
         } catch (e) {
             throw new Error(`@protobuf-ts/protoc failed to retrieve latest protoc version number: ${e}`);
         }
@@ -105,7 +107,7 @@ async function ensureInstalled(version) {
     // download the release
     let archive;
     try {
-        archive = await httpDownload(`https://github.com/protocolbuffers/protobuf/releases/download/v${version}/${releaseName}.zip`);
+        archive = await httpDownload(`${configuredDownloadUrl}/protocolbuffers/protobuf/releases/download/v${version}/${releaseName}.zip`);
     } catch (e) {
         throw new Error(`@protobuf-ts/protoc failed to download protoc v${version}. \nDid you misspell the version number? The version number must look like "3.0.12", without a leading "v".\n${e}`);
     }
@@ -134,4 +136,3 @@ async function ensureInstalled(version) {
     console.info(`@protobuf-ts/protoc installed protoc v${installed.version}.`);
     return installed;
 }
-
